@@ -28,13 +28,23 @@ data class GovernanceReceipt(
 )
 
 /**
+ * Options for regional and industry-specific PII detection.
+ */
+data class GovernOptions(
+    val region: List<String>? = null,
+    val industry: String? = null
+)
+
+/**
  * Result of a governance operation.
  */
 data class GovernanceResult(
     val action: GovernanceAction,
     val output: String,
     val piiDetected: List<PiiMatch>,
-    val receipt: GovernanceReceipt
+    val receipt: GovernanceReceipt,
+    val region: List<String>? = null,
+    val industry: String? = null
 )
 
 /**

@@ -27,6 +27,18 @@ class Tork(val config: TorkConfig = TorkConfig()) {
     private var totalPiiDetected: Long = 0
 
     /**
+     * Apply governance rules with regional and industry-specific detection.
+     *
+     * @param text the text to govern
+     * @param options regional and industry options
+     * @return governance result with action, output, and receipt
+     */
+    fun govern(text: String, options: GovernOptions): GovernanceResult {
+        val result = govern(text)
+        return result.copy(region = options.region, industry = options.industry)
+    }
+
+    /**
      * Apply governance rules to the input text.
      *
      * Detects PII, applies the configured action (ALLOW/DENY/REDACT),

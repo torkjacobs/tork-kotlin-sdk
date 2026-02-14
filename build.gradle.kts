@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "network.tork"
-version = "0.1.0"
+version = "0.1.1"
 
 repositories { mavenCentral() }
 
@@ -29,7 +29,7 @@ publishing {
             from(components["java"])
             groupId = "network.tork"
             artifactId = "tork-governance"
-            version = "0.1.0"
+            version = "0.1.1"
         }
     }
 }

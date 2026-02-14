@@ -44,6 +44,29 @@ println(result.piiDetected)          // [PiiMatch(type=SSN, ...)]
 println(result.receipt.receiptId)    // "rcpt_..."
 ```
 
+## Regional PII Detection (v1.1)
+
+Activate country-specific and industry-specific PII patterns:
+
+```kotlin
+val tork = Tork()
+
+// UAE regional detection — Emirates ID, +971 phone, PO Box
+val result = tork.govern(
+    "Emirates ID: 784-1234-1234567-1",
+    GovernOptions(region = listOf("ae"))
+)
+
+// Multi-region + industry
+val result = tork.govern(
+    "Aadhaar: 1234 5678 9012, ICD-10: J45.20",
+    GovernOptions(region = listOf("in"), industry = "healthcare")
+)
+
+// Available regions: AU, US, GB, EU, AE, SA, NG, IN, JP, CN, KR, BR
+// Available industries: healthcare, finance, legal
+```
+
 ## PII Detection
 
 ```kotlin
