@@ -28,11 +28,31 @@ data class GovernanceReceipt(
 )
 
 /**
+ * Agent/session context for multi-agent governance tracking.
+ *
+ * All fields are optional. When provided, they are included in the POST body
+ * to /api/v1/govern and returned in the receipt under `session_context`.
+ *
+ * @property agentId Identifier for the agent making the call.
+ * @property agentRole Role of the agent: "planner", "worker", or "judge".
+ * @property sessionId Groups all calls from the same agent session.
+ * @property sessionTurn Position in the conversation (1, 2, 3...).
+ */
+data class SessionContext(
+    val agentId: String? = null,
+    val agentRole: String? = null,
+    val sessionId: String? = null,
+    val sessionTurn: Int? = null
+)
+
+/**
  * Options for regional and industry-specific PII detection.
  */
 data class GovernOptions(
     val region: List<String>? = null,
-    val industry: String? = null
+    val industry: String? = null,
+    /** Optional agent/session context for multi-agent tracking. */
+    val sessionContext: SessionContext? = null
 )
 
 /**
@@ -44,7 +64,9 @@ data class GovernanceResult(
     val piiDetected: List<PiiMatch>,
     val receipt: GovernanceReceipt,
     val region: List<String>? = null,
-    val industry: String? = null
+    val industry: String? = null,
+    /** Agent/session context when provided. */
+    val sessionContext: SessionContext? = null
 )
 
 /**

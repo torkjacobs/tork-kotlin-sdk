@@ -30,11 +30,11 @@ class Tork(val config: TorkConfig = TorkConfig()) {
      * Apply governance rules with regional and industry-specific detection.
      *
      * @param text the text to govern
-     * @param options regional and industry options
+     * @param options regional, industry, and session context options
      * @return governance result with action, output, and receipt
      */
     fun govern(text: String, options: GovernOptions): GovernanceResult {
-        val result = govern(text)
+        val result = govern(text, options.sessionContext)
         return result.copy(region = options.region, industry = options.industry)
     }
 
@@ -43,8 +43,11 @@ class Tork(val config: TorkConfig = TorkConfig()) {
      *
      * Detects PII, applies the configured action (ALLOW/DENY/REDACT),
      * and returns a [GovernanceResult] with a cryptographic receipt.
+     *
+     * @param text the text to govern
+     * @param sessionContext optional agent/session context for multi-agent tracking
      */
-    fun govern(text: String): GovernanceResult {
+    fun govern(text: String, sessionContext: SessionContext? = null): GovernanceResult {
         val piiMatches = PiiDetector.detect(text)
 
         val action: GovernanceAction
@@ -71,7 +74,8 @@ class Tork(val config: TorkConfig = TorkConfig()) {
             action = action,
             output = output,
             piiDetected = piiMatches,
-            receipt = receipt
+            receipt = receipt,
+            sessionContext = sessionContext
         )
     }
 
