@@ -40,7 +40,7 @@ object PiiDetector {
         val matches = mutableListOf<PiiMatch>()
         for ((type, regex, _) in patterns) {
             for (result in regex.findAll(text)) {
-                matches.add(PiiMatch(type, result.value, result.range))
+                matches.add(PiiMatch(type, "[REDACTED]", result.range))
             }
         }
         return matches

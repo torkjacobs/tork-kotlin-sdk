@@ -55,11 +55,7 @@ class Tork(val config: TorkConfig = TorkConfig()) {
 
         if (piiMatches.isNotEmpty()) {
             action = config.defaultAction
-            output = if (action == GovernanceAction.REDACT) {
-                PiiDetector.redact(text)
-            } else {
-                text
-            }
+            output = PiiDetector.redact(text)
         } else {
             action = GovernanceAction.ALLOW
             output = text
