@@ -24,8 +24,13 @@ data class GovernanceReceipt(
     val outputHash: String,
     val piiCount: Int,
     val piiTypes: List<PiiType>,
-    val action: GovernanceAction
-)
+    val action: GovernanceAction,
+    /** Present only on receipts produced by [Tork.scanToolResult]. */
+    val toolResultScan: ToolResultScanReceiptBlock? = null
+) {
+    /** Return a copy of this receipt carrying the given `tool_result_scan` block. */
+    fun withToolResultScan(block: ToolResultScanReceiptBlock): GovernanceReceipt = copy(toolResultScan = block)
+}
 
 /**
  * Agent/session context for multi-agent governance tracking.

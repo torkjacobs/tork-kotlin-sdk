@@ -75,6 +75,81 @@ class Tork(val config: TorkConfig = TorkConfig()) {
         )
     }
 
+    /**
+     * Scan a tool result (MCP server response, or any external system's
+     * output) for PII and prompt injection BEFORE it is appended to model
+     * context, and record the scan on a receipt.
+     *
+     * The scan itself is the pure [ToolResultScanner.scanToolResult] --
+     * on-device, synchronous, zero network calls, using the same PII
+     * detector as [govern]. This method adds the receipt:
+     * `receipt.toolResultScan` carries counts by kind and type, the tool
+     * name, the server URI, whether the result was blocked, and the SDK
+     * version. It never carries the payload, a matched substring, or a
+     * location path.
+     *
+     * This is a CLIENT-SIDE, CLIENT-ATTESTED control: it runs in the
+     * caller's process, so the receipt records `attested_by: "client"` and
+     * `capture_mode: "edge"` -- Tork did not execute this scan and cannot
+     * verify it ran at all. Enforcement at the gateway, where a caller
+     * cannot skip the scan, is a separate and later control.
+     *
+     * Action mapping (fixed, NOT [config]'s defaultAction: unlike [govern],
+     * this path always returns masked output when it returns any, so the
+     * action must describe what actually happened to the tool result):
+     * - blocked -> DENY (nothing is returned to append)
+     * - injection detected -> ESCALATE (returned, flagged for a human)
+     * - PII masked -> REDACT
+     * - nothing found -> ALLOW
+     *
+     * @param input the tool result to scan
+     * @param options optional scan behavior (block-on-injection, custom
+     * redaction patterns, max traversal depth)
+     * @return the scan result plus a receipt carrying the tool_result_scan block
+     */
+    fun scanToolResult(
+        input: ToolResultScanInput,
+        options: ToolResultScanOptions = ToolResultScanOptions()
+    ): GovernedToolResultScanResult {
+        val scan = ToolResultScanner.scanToolResult(input, options)
+
+        val piiCount = ToolResultScanner.scanPIICount(scan.findings)
+        val injectionCount = ToolResultScanner.scanInjectionCount(scan.findings)
+
+        val action = when {
+            scan.blocked -> GovernanceAction.DENY
+            injectionCount > 0 -> GovernanceAction.ESCALATE
+            piiCount > 0 -> GovernanceAction.REDACT
+            else -> GovernanceAction.ALLOW
+        }
+
+        val block = ToolResultScanner.buildToolResultScanBlock(input.toolName, input.serverUri, scan, Version.SDK_VERSION)
+
+        // Hashes, not content: hashText is SHA256, so neither the payload nor
+        // the sanitized copy is recoverable from the receipt. A blocked scan
+        // has no output to hash and records the hash of the empty string.
+        val stableInput = ToolResultScanner.stableStringify(input.payload)
+        val stableOutput = if (scan.blocked) "" else ToolResultScanner.stableStringify(scan.sanitized)
+
+        val piiTypes = ToolResultScanner.scanPIITypes(scan.findings).mapNotNull { PiiType.fromCode(it) }
+
+        val receipt = GovernanceReceipt(
+            receiptId = ReceiptBuilder.generateId(),
+            timestamp = java.time.Instant.now().toString(),
+            inputHash = ReceiptBuilder.hashText(stableInput),
+            outputHash = ReceiptBuilder.hashText(stableOutput),
+            piiCount = piiCount,
+            piiTypes = piiTypes,
+            action = action,
+            toolResultScan = block
+        )
+
+        totalCalls++
+        if (piiCount > 0) totalPiiDetected++
+
+        return GovernedToolResultScanResult(scan.sanitized, scan.findings, scan.blocked, scan.reason, receipt)
+    }
+
     /** Total number of governance calls made. */
     fun getCallCount(): Long = totalCalls
 

@@ -81,13 +81,59 @@ val redacted = PiiDetector.redact("SSN: 123-45-6789")
 
 ### Supported PII Types
 
-| Type | Example | Redaction |
-|------|---------|-----------|
-| SSN | 123-45-6789 | [SSN_REDACTED] |
-| Credit Card | 4111-1111-1111-1111 | [CARD_REDACTED] |
-| Email | john@example.com | [EMAIL_REDACTED] |
-| Phone | 555-123-4567 | [PHONE_REDACTED] |
-| IP Address | 192.168.1.1 | [IP_REDACTED] |
+Tier 1 basic vocabulary (10 types), shared with the JS/Java SDKs with identical string codes. This SDK does not carry the Python SDK's regional/industry pattern tier (AU/US/GB/EU/AE/... profiles) as part of this vocabulary — see [Regional PII Detection](#regional-pii-detection-v11) for that separate, older mechanism.
+
+| Type | Code | Example | Redaction |
+|------|------|---------|-----------|
+| SSN | `ssn` | 123-45-6789 | [SSN_REDACTED] |
+| Credit Card | `credit_card` | 4111-1111-1111-1111 | [CARD_REDACTED] |
+| Email | `email` | john@example.com | [EMAIL_REDACTED] |
+| Phone | `phone` | 555-123-4567 | [PHONE_REDACTED] |
+| Address | `address` | 123 Main Street | [ADDRESS_REDACTED] |
+| IP Address | `ip_address` | 192.168.1.1 | [IP_REDACTED] |
+| Date of Birth | `date_of_birth` | 01/15/1990 | [DOB_REDACTED] |
+| Passport | `passport` | AB1234567 | [PASSPORT_REDACTED] |
+| Driver's License | `drivers_license` | D1234567 | [DL_REDACTED] |
+| Bank Account | `bank_account` | 12345678901234 | [ACCOUNT_REDACTED] |
+
+## Scanning tool results
+
+A tool result returned by an MCP server — or any external system you do not control — is untrusted input that is about to be appended to a model's context. `tork.scanToolResult()` scans it first, on-device, for PII and prompt injection:
+
+```kotlin
+import network.tork.Tork
+import network.tork.ToolResultScanInput
+import network.tork.ToolResultScanOptions
+
+val tork = Tork()
+val scan = tork.scanToolResult(
+    ToolResultScanInput(
+        toolName = "lookup_customer",
+        payload = toolResult,           // whatever the server returned
+        serverUri = "mcp://crm.internal/customers"
+    ),
+    ToolResultScanOptions(blockOnInjection = true)
+)
+
+if (scan.blocked) {
+    println(scan.reason)                // do not append anything
+} else {
+    appendToContext(scan.sanitized)     // PII masked in place
+}
+
+scan.findings
+// [ToolResultFinding(kind=PII, type=email, count=1, location=$.content[0].text),
+//  ToolResultFinding(kind=INJECTION, type=heuristic:instruction_override, count=1, location=$.content[0].text)]
+```
+
+There is also a standalone `ToolResultScanner.scanToolResult(input, options)` with the same signature that returns `ToolResultScanResult(sanitized, findings, blocked, reason?)` and produces no receipt.
+
+- **PII uses the same on-device detector as `govern()`** — same patterns, same redaction labels. Matches are masked in place; the payload structure is otherwise unchanged, and a clean payload comes back untouched (same object identity).
+- **Injection detection is heuristic.** A conservative pattern set (`tork-injection-heuristics-v1`) covering instruction-override phrases, role reassignment, and exfiltration URLs. Every injection finding is typed `heuristic:<name>` because that is exactly what it is: a regex match over untrusted text, with false positives and false negatives, not a verified determination. Without `blockOnInjection`, matches are reported and the result is still returned; with it, `sanitized` is `null` so no masked copy can be appended by accident.
+- **Zero network calls.** The scan is pure and synchronous — no socket, no I/O, no clock read.
+- **Recorded on the receipt as counts only.** `receipt.toolResultScan` carries `attested_by: "client"`, `capture_mode: "edge"`, the tool name and server URI, counts by kind and type, the blocked flag, and the SDK version. It never carries the payload, a matched value, or a location path.
+
+**This is a client-side, client-attested control.** The scan runs in your process, and the receipt says so: Tork did not execute it and cannot verify it ran at all. **Gateway-side enforcement, where a caller cannot skip the scan, is a separate and later control.** Do not read a `tool_result_scan` block as proof that every tool result reaching a model was scanned; read it as a record of the scans a caller chose to run and report.
 
 ## Ktor Integration
 
