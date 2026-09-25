@@ -1,5 +1,7 @@
 package network.tork
 
+import network.tork.governance.pii.PiiCountry
+
 /**
  * Types of personally identifiable information.
  *
@@ -45,9 +47,15 @@ data class PiiDetectionResult(
     val hasPii: Boolean,
     val types: Set<PiiType>,
     val matches: List<PiiMatch>,
-    val redactedText: String
+    val redactedText: String,
+    /** Country-registry detections, kept separate from the ten L0 [types]. */
+    val countryMatches: List<PiiCountry.CountryMatch> = emptyList(),
+    /** Redaction labels of those matches, e.g. `NATIONAL_ID`. */
+    val countryLabels: List<String> = emptyList(),
+    /** Country profiles the text activated, in registry order. */
+    val regions: List<String> = emptyList()
 ) {
-    val count: Int get() = matches.size
+    val count: Int get() = matches.size + countryMatches.size
 }
 
 /**
@@ -119,26 +127,85 @@ object PiiDetector {
      * declaration order, so a broad later pattern never re-matches text a
      * more specific earlier pattern already redacted.
      */
-    fun redact(text: String): String {
-        var result = text
-        for ((type, regex) in patterns) {
-            result = regex.replace(result, type.redaction)
-        }
-        return result
-    }
+    fun redact(text: String): String = detectAndRedact(text).redactedText
 
     /**
      * Detect PII and return a full detection result with redacted text, in
      * one call. Used by callers (e.g. tool-result scanning) that need both
      * the matches and the masked text for the same input.
+     *
+     * REDACTION IS ONE PASS. Until 0.2.0 [redact] applied each pattern in turn
+     * over text a previous pattern had already rewritten, while [detect]
+     * reported ranges into the ORIGINAL text. Two types matching overlapping
+     * spans could leave half an identifier standing beside a redaction token --
+     * digits exposed in output the caller had been told was redacted. Every
+     * match is now collected against the original text, overlaps are resolved
+     * before anything is rewritten, and the surviving spans are spliced right
+     * to left in a single pass.
+     *
+     * @param regions forces a set of country profiles on, case-insensitive;
+     *   null or empty infers them from the content.
      */
-    fun detectAndRedact(text: String): PiiDetectionResult {
-        val matches = detect(text)
+    @JvmOverloads
+    fun detectAndRedact(text: String, regions: List<String>? = null): PiiDetectionResult {
+        val l0 = detect(text)
+        val kept = mutableListOf<PiiMatch>()
+
+        val activeRegions = if (!regions.isNullOrEmpty()) {
+            regions.map { it.uppercase() }
+        } else {
+            PiiCountry.inferRegions(text)
+        }
+        val countryMatches =
+            PiiCountry.detect(text, PiiCountry.patternsForRegions(activeRegions))
+
+        // Resolve overlaps before anything is rewritten. A country identifier
+        // supersedes any L0 span it fully contains -- the cloud does the same,
+        // which is how a Saudi national ID stops coming back as
+        // [PHONE_REDACTED].
+        val claimed = mutableListOf<Pair<Int, Int>>()
+        val spans = mutableListOf<PiiCountry.RedactionSpan>()
+        for (c in countryMatches) {
+            claimed.add(c.startIndex to c.endIndex)
+            spans.add(PiiCountry.RedactionSpan(c.startIndex, c.endIndex, c.redaction))
+        }
+
+        for (m in l0) {
+            val start = m.range.first
+            val end = m.range.last + 1
+            val overlapping = claimed.filter { (rs, re) -> start < re && end > rs }
+            if (overlapping.isNotEmpty()) {
+                val swallowsAll = overlapping.all { (rs, re) ->
+                    val (cs, ce) = PiiCountry.trimmedCore(text, rs, re)
+                    start <= cs && end >= ce
+                }
+                if (!swallowsAll) continue
+                // An L0 span that fully contains a country span still loses: the
+                // country label is the more specific claim.
+                val hitsCountry = overlapping.any { o ->
+                    countryMatches.any { it.startIndex == o.first && it.endIndex == o.second }
+                }
+                if (hitsCountry) continue
+                for (o in overlapping) {
+                    claimed.remove(o)
+                    spans.removeAll { it.startIndex == o.first && it.endIndex == o.second }
+                }
+            }
+            claimed.add(start to end)
+            spans.add(PiiCountry.RedactionSpan(start, end, m.type.redaction))
+            kept.add(m)
+        }
+
+        val countryLabels = countryMatches.map { it.label }.distinct()
+
         return PiiDetectionResult(
-            hasPii = matches.isNotEmpty(),
-            types = matches.map { it.type }.toSet(),
-            matches = matches,
-            redactedText = redact(text)
+            hasPii = kept.isNotEmpty() || countryMatches.isNotEmpty(),
+            types = kept.map { it.type }.toSet(),
+            matches = kept.sortedBy { it.range.first },
+            redactedText = PiiCountry.applyRedactions(text, spans),
+            countryMatches = countryMatches,
+            countryLabels = countryLabels,
+            regions = activeRegions
         )
     }
 }

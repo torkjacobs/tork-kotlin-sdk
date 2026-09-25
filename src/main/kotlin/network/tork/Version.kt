@@ -10,5 +10,5 @@ package network.tork
  */
 object Version {
     /** Current SDK version. Keep in sync with build.gradle.kts's `version`. */
-    const val SDK_VERSION = "0.2.0"
+    const val SDK_VERSION = "0.3.0"
 }
