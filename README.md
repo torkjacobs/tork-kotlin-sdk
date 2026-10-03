@@ -8,7 +8,7 @@ On-device AI governance with PII detection, redaction, and cryptographic receipt
 
 ```kotlin
 dependencies {
-    implementation("network.tork:tork-governance:0.3.0")
+    implementation("network.tork:tork-governance:0.4.0")
 }
 ```
 
@@ -16,7 +16,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'network.tork:tork-governance:0.3.0'
+    implementation 'network.tork:tork-governance:0.4.0'
 }
 ```
 
@@ -26,7 +26,7 @@ dependencies {
 <dependency>
     <groupId>network.tork</groupId>
     <artifactId>tork-governance</artifactId>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
 </dependency>
 ```
 
@@ -42,6 +42,26 @@ println(result.action)               // REDACT
 println(result.output)               // "My SSN is [SSN_REDACTED]"
 println(result.piiDetected)          // [PiiMatch(type=SSN, ...)]
 println(result.receipt.receiptId)    // "rcpt_..."
+```
+
+## Agent telemetry fields
+
+Optional agent/session context for multi-agent tracking. Set only what you
+have; unset fields are omitted from the request, not sent as null.
+
+```kotlin
+import network.tork.SessionContext
+import network.tork.Tork
+
+val ctx = SessionContext(
+    agentId = "agent-7",
+    agentRole = "planner",   // "planner", "worker" or "judge"
+    sessionId = "sess-1",
+    sessionTurn = 3          // Int
+)
+val result = Tork().govern("hello", ctx)   // or GovernOptions(sessionContext = ctx)
+result.sessionContext
+ctx.toWireJson()  // {"agent_id":"agent-7","agent_role":"planner","session_id":"sess-1","session_turn":3}
 ```
 
 ## Country PII detection

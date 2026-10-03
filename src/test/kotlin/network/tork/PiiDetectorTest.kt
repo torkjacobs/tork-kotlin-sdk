@@ -175,4 +175,33 @@ class PiiDetectorTest {
         val actual = PiiType.entries.map { it.code }.toSet()
         assertEquals(expected, actual)
     }
+
+    /**
+     * Every declared type must detect a positive example AND ignore a negative
+     * one, each asserted against that type specifically (a hit under another
+     * type does not count). A declared type with no working pattern is a false
+     * claim (S01).
+     */
+    private val examples: Map<PiiType, Pair<String, String>> = mapOf(
+        PiiType.SSN to ("SSN 123-45-6789" to "Order 12-345-6789 shipped"),
+        PiiType.CREDIT_CARD to ("Card 4111-1111-1111-1111" to "Card 4111-1111-1111"),
+        PiiType.EMAIL to ("Mail jane@example.com" to "Mail jane at example dot com"),
+        PiiType.PHONE to ("Call 555-123-4567" to "Call 555-1234"),
+        PiiType.ADDRESS to ("Ship to 42 Wallaby Way today" to "Ship to the warehouse today"),
+        PiiType.IP_ADDRESS to ("Host 10.0.0.255" to "Host 10.0.0.256.1"),
+        PiiType.DATE_OF_BIRTH to ("DOB 07/04/1985" to "DOB 13/45/1985"),
+        PiiType.PASSPORT to ("Passport AB1234567" to "Passport 1234567"),
+        PiiType.DRIVERS_LICENSE to ("License D1234567" to "License D123"),
+        PiiType.BANK_ACCOUNT to ("Account 12345678901" to "Account 1234567")
+    )
+
+    @Test
+    fun `every declared PiiType has a positive and a negative example`() {
+        assertEquals(PiiType.entries.toSet(), examples.keys)
+        for ((type, ex) in examples) {
+            val (positive, negative) = ex
+            assertTrue(PiiDetector.detect(positive).any { it.type == type }, "$type should detect: $positive")
+            assertFalse(PiiDetector.detect(negative).any { it.type == type }, "$type should NOT detect: $negative")
+        }
+    }
 }

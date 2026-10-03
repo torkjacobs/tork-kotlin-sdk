@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.0 - 2026-10-03
+
+### Added
+- **Agent telemetry fields on the governance call.** `SessionContext` carries the
+  optional `agentId`, `agentRole`, `sessionId` and `sessionTurn` (an `Int`).
+  They pass through `govern(text, sessionContext)` and
+  `govern(text, GovernOptions(sessionContext = ...))` onto
+  `GovernanceResult.sessionContext`. New `SessionContext.toWireMap()` /
+  `toWireJson()` produce the `/api/v1/govern` request fields (`agent_id`,
+  `agent_role`, `session_id`, `session_turn`), omitting any field that is not
+  set. `session_turn` is sent as a JSON integer.
+- Tests for set / unset / partial pass-through and the integer wire type.
+- A table-driven PII test: every declared `PiiType` has a positive and a negative
+  example, each asserted against that type specifically.
+
+### PII types (S01 parity audit)
+All 10 declared types (`ssn`, `credit_card`, `email`, `phone`, `address`,
+`ip_address`, `date_of_birth`, `passport`, `drivers_license`, `bank_account`)
+have a live pattern; none was removed. Note `passport`, `drivers_license` and
+`bank_account` are broad shape patterns, not checksummed identifiers, and can
+overlap one another.
+
 ## 0.3.0 - 2026-09-25
 
 ### Added
