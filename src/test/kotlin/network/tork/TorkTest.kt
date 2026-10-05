@@ -65,4 +65,38 @@ class TorkTest {
         assertEquals(GovernanceAction.REDACT, result.receipt.action)
         assertTrue(result.receipt.timestamp.isNotEmpty())
     }
+
+    @Test
+    fun `agent telemetry fields pass through govern when set`() {
+        val ctx = SessionContext(agentId = "agent-7", agentRole = "planner", sessionId = "sess-1", sessionTurn = 3)
+        val result = Tork().govern("hello", ctx)
+        assertEquals(ctx, result.sessionContext)
+        assertEquals(
+            mapOf("agent_id" to "agent-7", "agent_role" to "planner", "session_id" to "sess-1", "session_turn" to 3),
+            result.sessionContext!!.toWireMap()
+        )
+    }
+
+    @Test
+    fun `agent telemetry fields pass through GovernOptions`() {
+        val ctx = SessionContext(agentId = "a", sessionTurn = 1)
+        val result = Tork().govern("hello", GovernOptions(sessionContext = ctx))
+        assertEquals(ctx, result.sessionContext)
+    }
+
+    @Test
+    fun `agent telemetry fields are omitted when not set`() {
+        assertEquals(null, Tork().govern("hello").sessionContext)
+        assertEquals(emptyMap(), SessionContext().toWireMap())
+        assertEquals("{}", SessionContext().toWireJson())
+        val partial = SessionContext(sessionId = "s")
+        assertEquals(mapOf("session_id" to "s"), partial.toWireMap())
+        assertFalse(partial.toWireJson().contains("agent_id"))
+    }
+
+    @Test
+    fun `session turn is an integer on the wire and strings are escaped`() {
+        val json = SessionContext(agentId = "a\"b", sessionTurn = 2).toWireJson()
+        assertEquals("{\"agent_id\":\"a\\\"b\",\"session_turn\":2}", json)
+    }
 }

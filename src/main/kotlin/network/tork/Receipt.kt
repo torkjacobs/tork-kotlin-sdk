@@ -48,7 +48,33 @@ data class SessionContext(
     val agentRole: String? = null,
     val sessionId: String? = null,
     val sessionTurn: Int? = null
-)
+) {
+    /**
+     * Wire fields for the POST body to /api/v1/govern: snake_case keys
+     * (`agent_id`, `agent_role`, `session_id`, `session_turn`), with unset
+     * (null) fields omitted entirely rather than sent as null.
+     */
+    fun toWireMap(): Map<String, Any> = buildMap {
+        agentId?.let { put("agent_id", it) }
+        agentRole?.let { put("agent_role", it) }
+        sessionId?.let { put("session_id", it) }
+        sessionTurn?.let { put("session_turn", it) }
+    }
+
+    /** [toWireMap] as a JSON object string (`{}` when nothing is set). */
+    fun toWireJson(): String = toWireMap().entries.joinToString(",", "{", "}") { (k, v) ->
+        "\"$k\":" + if (v is Int) v.toString() else "\"" + escapeJson(v as String) + "\""
+    }
+
+    private fun escapeJson(s: String): String = buildString {
+        for (c in s) when {
+            c == '"' -> append("\\\"")
+            c == '\\' -> append("\\\\")
+            c < ' ' -> append("\\u%04x".format(c.code))
+            else -> append(c)
+        }
+    }
+}
 
 /**
  * Options for regional and industry-specific PII detection.

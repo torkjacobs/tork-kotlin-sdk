@@ -8,7 +8,7 @@ plugins {
 // io.github.torkjacobs:tork-governance (published, 0.1.0), so this module takes
 // a DISTINCT artifactId under the same verified group rather than clobbering it.
 group = "io.github.torkjacobs"
-version = "0.3.0"
+version = "0.4.0"
 
 repositories { mavenCentral() }
 
@@ -38,7 +38,7 @@ publishing {
             from(components["java"])
             groupId = "io.github.torkjacobs"
             artifactId = "tork-governance-kotlin"
-            version = "0.3.0"
+            version = "0.4.0"
         }
     }
 }
